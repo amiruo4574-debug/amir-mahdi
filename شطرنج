@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بازی شطرنج</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+        }
+
+        .container {
+            text-align: center;
+            background: #fff;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            width: 480px;
+            height: 480px;
+            border: 2px solid #2c3e50;
+            background: #fff;
+        }
+
+        .square {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            cursor: pointer;
+        }
+
+        .light {
+            background: #f0d9b5;
+        }
+
+        .dark {
+            background: #b58863;
+        }
+
+        .selected {
+            background: #aaffaa !important;
+        }
+
+        .valid-move {
+            background: #aaffff !important;
+        }
+
+        #turn {
+            font-size: 1.2em;
+            color: #2c3e50;
+            margin-top: 10px;
+        }
+
+        button {
+            background: #2c3e50;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            margin-top: 10px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+
+        button:hover {
+            background: #34495e;
+        }
+
+        @media (max-width: 500px) {
+            #board {
+                width: 320px;
+                height: 320px;
+                grid-template-columns: repeat(8, 40px);
+                grid-template-rows: repeat(8, 40px);
+            }
+
+            .square {
+                width: 40px;
+                height: 40px;
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>شطرنج ساده</h1>
+        <div id="board"></div>
+        <div id="turn">نوبت: سفید</div>
+        <button onclick="resetBoard()">شروع دوباره</button>
+    </div>
+
+    <script>
+        const board = document.getElementById('board');
+        const turnDisplay = document.getElementById('turn');
+        let chessBoard = [];
+        let selectedSquare = null;
+        let currentTurn = 'white';
+
+        // مهره‌های شطرنج (یونی‌کد)
+        const pieces = {
+            'wp': '♙', 'wr': '♖', 'wn': '♘', 'wb': '♗', 'wk': '♔', 'wq': '♕',
+            'bp': '♟', 'br': '♜', 'bn': '♞', 'bb': '♝', 'bk': '♚', 'bq': '♛'
+        };
+
+        // تنظیم اولیه صفحه
+        function initBoard() {
+            chessBoard = [
+                ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
+                ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
+                ['', '', '', '', '', '', '', ''],
+                ['', '', '', '', '', '', '', ''],
+                ['', '', '', '', '', '', '', ''],
+                ['', '', '', '', '', '', '', ''],
+                ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
+                ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr']
+            ];
+            renderBoard();
+        }
+
+        // رندر صفحه
+        function renderBoard() {
+            board.innerHTML = '';
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                    square.dataset.row = row;
+                    square.dataset.col = col;
+                    square.textContent = pieces[chessBoard[row][col]] || '';
+                    square.addEventListener('click', handleSquareClick);
+                    board.appendChild(square);
+                }
+            }
+            turnDisplay.textContent = `نوبت: ${currentTurn === 'white' ? 'سفید' : 'سیاه'}`;
+        }
+
+        // مدیریت کلیک روی خانه‌ها
+        function handleSquareClick(event) {
+            const row = parseInt(event.target.dataset.row);
+            const col = parseInt(event.target.dataset.col);
+            const piece = chessBoard[row][col];
+
+            if (selectedSquare) {
+                // تلاش برای حرکت
+                if (isValidMove(selectedSquare.row, selectedSquare.col, row, col)) {
+                    movePiece(selectedSquare.row, selectedSquare.col, row, col);
+                    clearSelection();
+                    currentTurn = currentTurn === 'white' ? 'black' : 'white';
+                    renderBoard();
+                } else {
+                    clearSelection();
+                    renderBoard();
+                }
+            } else if (piece && ((currentTurn === 'white' && piece.startsWith('w')) || (currentTurn === 'black' && piece.startsWith('b')))) {
+                // انتخاب مهره
+                selectedSquare = { row, col };
+                event.target.classList.add('selected');
+                highlightValidMoves(row, col);
+            }
+        }
+
+        // بررسی حرکت معتبر (قوانین ساده)
+        function isValidMove(fromRow, fromCol, toRow, toCol) {
+            const piece = chessBoard[fromRow][fromCol];
+            const target = chessBoard[toRow][toCol];
+
+            // نمی‌توان به خانه خودی حمله کرد
+            if (target && piece[0] === target[0]) return false;
+
+            // قوانین ساده برای هر مهره
+            if (piece.endsWith('p')) { // پیاده
+                const direction = piece.startsWith('w') ? -1 : 1;
+                if (fromCol === toCol && !target && toRow === fromRow + direction) return true; // حرکت یک خانه
+                if (fromCol === toCol && !target && ((piece.startsWith('w') && fromRow === 6 && toRow === 4) || (piece.startsWith('b') && fromRow === 1 && toRow === 3))) return true; // حرکت دو خانه
+                if (Math.abs(fromCol - toCol) === 1 && toRow === fromRow + direction && target) return true; // حمله
+            } else if (piece.endsWith('r')) { // رخ
+                if (fromRow === toRow || fromCol === toCol) return isPathClear(fromRow, fromCol, toRow, toCol);
+            } else if (piece.endsWith('n')) { // اسب
+                return (Math.abs(fromRow - toRow) === 2 && Math.abs(fromCol - toCol) === 1) || (Math.abs(fromRow - toRow) === 1 && Math.abs(fromCol - toCol) === 2);
+            } else if (piece.endsWith('b')) { // فیل
+                if (Math.abs(fromRow - toRow) === Math.abs(fromCol - toCol)) return isPathClear(fromRow, fromCol, toRow, toCol);
+            } else if (piece.endsWith('q')) { // وزیر
+                if (fromRow === toRow || fromCol === toCol || Math.abs(fromRow - toRow) === Math.abs(fromCol - toCol)) return isPathClear(fromRow, fromCol, toRow, toCol);
+            } else if (piece.endsWith('k')) { // شاه
+                return Math.abs(fromRow - toRow) <= 1 && Math.abs(fromCol - toCol) <= 1;
+            }
+            return false;
+        }
+
+        // بررسی مسیر خالی
+        function isPathClear(fromRow, fromCol, toRow, toCol) {
+            const rowStep = fromRow === toRow ? 0 : (toRow > fromRow ? 1 : -1);
+            const colStep = fromCol === toCol ? 0 : (toCol > fromCol ? 1 : -1);
+            let row = fromRow + rowStep;
+            let col = fromCol + colStep;
+            while (row !== toRow || col !== toCol) {
+                if (chessBoard[row][col]) return false;
+                row += rowStep;
+                col += colStep;
+            }
+            return true;
+        }
+
+        // جابه‌جایی مهره
+        function movePiece(fromRow, fromCol, toRow, toCol) {
+            chessBoard[toRow][toCol] = chessBoard[fromRow][fromCol];
+            chessBoard[fromRow][fromCol] = '';
+        }
+
+        // نمایش خانه‌های معتبر برای حرکت
+        function highlightValidMoves(row, col) {
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    if (isValidMove(row, col, r, c)) {
+                        const square = document.querySelector(`[data-row="${r}"][data-col="${c}"]`);
+                        square.classList.add('valid-move');
+                    }
+                }
+            }
+        }
+
+        // پاک کردن انتخاب
+        function clearSelection() {
+            selectedSquare = null;
+            renderBoard();
+        }
+
+        // شروع دوباره
+        function resetBoard() {
+            initBoard();
+            currentTurn = 'white';
+            selectedSquare = null;
+        }
+
+        // شروع اولیه
+        initBoard();
+    </script>
+</body>
+</html>
